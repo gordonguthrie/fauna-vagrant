@@ -1,0 +1,83 @@
+#!/bin/bash
+
+## Try and make the bash work safely
+# Terminate on unitiialised variables
+set -u
+# Terminate on error
+set -e
+# Terminate if any part of a pipeline fails
+set -o pipefail
+
+# Uncomment for debugging
+set -x
+
+## Define the global variables
+readonly LOGFILE="/root/vagrant.provision.log"
+readonly ERLANG_URL="http://erlang.org/download/otp_src_20.0.tar.gz"
+
+function should_provision_fn () {
+    if [ -f  "/var/vagrant_provision" ]; then
+	   exit 0
+    fi
+}
+
+function log_fn() {
+    String=$1
+    echo $String >> $LOGFILE
+}
+
+function add_basic_apps_fn() {
+
+    log_fn "Adding basic apps"
+
+    sed -i 's/#deb/deb/g' /etc/apt/sources.list 
+    sed -i 's/deb cdrom/# deb cdrom/g' /etc/apt/sources.list
+    sudo apt-get -y update >> $LOGFILE
+    sudo apt-get -y install emacs24 ntp git-core lynx-cur dbus-x11 gnome-icon-theme firefox chromium-browser ssh-askpass xclip gdb >> $LOGFILE
+}
+
+function install_erlang_fn() {
+    echo "getting and building erlang" >> $LOGFILE
+
+    apt-get -y build-dep erlang >> $LOGFILE
+    apt-get -y install libwxbase2.8 libwxgtk2.8-dev libqt4-opengl-dev libgtk2.0-dev >> $LOGFILE
+    mkdir -p /tmp/build-erlang
+    cd $_
+    wget --tries=10 $ERLANG_URL -O erlang.tar.gz >> $LOGFILE
+    tar xfz erlang.tar.gz
+    cd `ls -l | egrep '^d' | tr -s ' ' | cut -d' ' -f9`
+    echo "configure erlang" >> $LOGFILE
+    ./configure >> $LOGFILE
+    echo "make erlang" >> $LOGFILE
+    make >> $LOGFILE
+    echo "install erlang" >> $LOGFILE
+    make install >> $LOGFILE
+}
+
+function install_riak_prerequisites_fn() {
+    echo "install riak prerequisitives" >> $LOGFILE
+    sudo apt-get -y install build-essential libpam0g-dev git >> $LOGFILE
+}
+
+function link_shared_files_fn() {
+	ln -s /home/vagrant/vagrant_data/.ssh /home/vagrant/.ssh
+	ln -s /home/vagrant/vagrant_data/.bash_profile /home/vagrant/.bash_profile
+    ln -s /home/vagrant/vagrant_data/.emacs /home/vagrant/.emacs
+}	
+
+function configure_vagrant_fn() {
+    touch /var/vagrant_provision
+}
+
+function main {
+    should_provision_fn
+    add_basic_apps_fn
+    install_erlang_fn
+    install_riak_prerequisites_fn
+    #link_shared_files_fn
+    configure_vagrant_fn
+    echo "Installation finished" >> $LOGFILE
+}
+
+main
+ 
